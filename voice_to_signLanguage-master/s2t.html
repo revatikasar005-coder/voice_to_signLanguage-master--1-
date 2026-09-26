@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Speech to ISL</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #050810;
+      --surface: rgba(255,255,255,0.04);
+      --border: rgba(255,255,255,0.08);
+      --accent: #4f8ef7;
+      --accent2: #a259ff;
+      --text: #f0f4ff;
+      --muted: #7a8499;
+      --success: #3ecf8e;
+      --danger: #ff5e7e;
+      --glow: rgba(79,142,247,0.25);
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow-x: hidden;
+    }
+
+    /* Animated background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 20% 20%, rgba(79,142,247,0.12) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 80% 80%, rgba(162,89,255,0.10) 0%, transparent 60%),
+        radial-gradient(ellipse 40% 40% at 60% 10%, rgba(62,207,142,0.06) 0%, transparent 50%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Grid texture */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .wrapper {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 900px;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2.5rem;
+    }
+
+    /* Header */
+    .header {
+      text-align: center;
+      animation: fadeDown 0.7s ease both;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(79,142,247,0.12);
+      border: 1px solid rgba(79,142,247,0.3);
+      color: var(--accent);
+      font-size: 0.75rem;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 5px 14px;
+      border-radius: 100px;
+      margin-bottom: 1.2rem;
+    }
+
+    .badge::before {
+      content: '';
+      width: 6px; height: 6px;
+      background: var(--accent);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #f0f4ff 30%, #7ba8ff 70%, #a259ff 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .subtitle {
+      margin-top: 0.8rem;
+      color: var(--muted);
+      font-size: 1rem;
+      font-weight: 300;
+    }
+
+    /* Main card */
+    .card {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 2rem;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 0 60px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.04) inset;
+      animation: fadeUp 0.7s 0.2s ease both;
+    }
+
+    .input-label {
+      font-size: 0.78rem;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.8rem;
+      display: block;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    textarea {
+      flex: 1;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 1rem;
+      font-weight: 400;
+      padding: 14px 18px;
+      resize: none;
+      height: 110px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      outline: none;
+    }
+
+    textarea::placeholder { color: var(--muted); }
+
+    textarea:focus {
+      border-color: rgba(79,142,247,0.5);
+      box-shadow: 0 0 0 3px rgba(79,142,247,0.1);
+    }
+
+    .mic-btn {
+      width: 54px; height: 54px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: rgba(79,142,247,0.1);
+      color: var(--accent);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+
+    .mic-btn:hover {
+      background: rgba(79,142,247,0.2);
+      border-color: rgba(79,142,247,0.4);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 20px rgba(79,142,247,0.2);
+    }
+
+    .mic-btn.recording {
+      background: rgba(255,94,126,0.15);
+      border-color: rgba(255,94,126,0.4);
+      color: var(--danger);
+      animation: micPulse 1s infinite;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 1.2rem;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 13px 24px;
+      border-radius: 12px;
+      border: none;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.95rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: white;
+      box-shadow: 0 4px 20px rgba(79,142,247,0.3);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(79,142,247,0.4);
+    }
+
+    .btn-primary:active { transform: translateY(0); }
+
+    .btn-secondary {
+      background: rgba(255,255,255,0.05);
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255,94,126,0.1);
+      color: var(--danger);
+      border-color: rgba(255,94,126,0.3);
+    }
+
+    /* Status bar */
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 1.4rem;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      font-size: 0.875rem;
+      color: var(--muted);
+      display: none;
+    }
+
+    .status.visible { display: flex; }
+
+    .status.loading { color: var(--accent); border-color: rgba(79,142,247,0.2); background: rgba(79,142,247,0.05); }
+    .status.success { color: var(--success); border-color: rgba(62,207,142,0.2); background: rgba(62,207,142,0.05); }
+    .status.error { color: var(--danger); border-color: rgba(255,94,126,0.2); background: rgba(255,94,126,0.05); }
+
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid currentColor;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+
+    /* Progress bar */
+    .progress-track {
+      height: 2px;
+      background: var(--border);
+      border-radius: 99px;
+      margin-top: 1rem;
+      overflow: hidden;
+      display: none;
+    }
+
+    .progress-track.visible { display: block; }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 99px;
+      width: 0%;
+      transition: width 0.4s ease;
+      animation: progressAnim 3s ease forwards;
+    }
+
+    /* Features row */
+    .features {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      width: 100%;
+      animation: fadeUp 0.7s 0.4s ease both;
+    }
+
+    .feature {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.2rem;
+      text-align: center;
+      transition: all 0.2s;
+    }
+
+    .feature:hover {
+      border-color: rgba(79,142,247,0.2);
+      background: rgba(79,142,247,0.05);
+      transform: translateY(-2px);
+    }
+
+    .feature-icon {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .feature-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.2rem;
+    }
+
+    .feature-desc {
+      font-size: 0.75rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* Animations */
+    @keyframes fadeDown {
+      from { opacity: 0; transform: translateY(-20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    @keyframes micPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255,94,126,0.3); }
+      50% { box-shadow: 0 0 0 8px rgba(255,94,126,0); }
+    }
+
+    @keyframes progressAnim {
+      0% { width: 0%; }
+      30% { width: 40%; }
+      60% { width: 70%; }
+      90% { width: 90%; }
+    }
+
+    @media (max-width: 600px) {
+      .features { grid-template-columns: 1fr; }
+      h1 { font-size: 1.8rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+
+    <div class="header">
+      <div class="badge">AI Powered</div>
+      <h1>Speech to Indian<br/>Sign Language</h1>
+      <p class="subtitle">Convert spoken words into ISL gestures instantly</p>
+    </div>
+
+    <div class="card">
+      <label class="input-label">Enter or speak your text</label>
+      <div class="input-row">
+        <textarea id="textbox" name="textbox" placeholder="Type something like 'I am going to school'…"></textarea>
+        <button class="mic-btn" id="micBtn" title="Start voice input">
+          <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="23"/>
+            <line x1="8" y1="23" x2="16" y2="23"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-primary" id="generateBtn" onclick="generateSign()">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <polygon points="5 3 19 12 5 21 5 3"/>
+          </svg>
+          Generate Sign
+        </button>
+        <button class="btn btn-secondary" onclick="cancelAction()">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+          Cancel
+        </button>
+      </div>
+
+      <div class="progress-track" id="progressTrack">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+
+      <div class="status" id="statusBar">
+        <div class="spinner" id="spinner"></div>
+        <span id="statusText">Generating sign language video…</span>
+      </div>
+    </div>
+
+    <div class="features">
+      <div class="feature">
+        <div class="feature-icon">🎙️</div>
+        <div class="feature-title">Voice Input</div>
+        <div class="feature-desc">Speak naturally and get instant ISL translation</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🤟</div>
+        <div class="feature-title">ISL Grammar</div>
+        <div class="feature-desc">Automatically reorders to correct sign language syntax</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🎬</div>
+        <div class="feature-title">Video Output</div>
+        <div class="feature-desc">Generates a continuous sign language video clip</div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // Voice recognition
+    const micBtn = document.getElementById('micBtn');
+    const textarea = document.getElementById('textbox');
+    let recognition = null;
+    let isRecording = false;
+
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      recognition = new SR();
+      recognition.continuous = false;
+      recognition.lang = 'en-US';
+
+      recognition.onresult = (e) => {
+        textarea.value = e.results[0][0].transcript;
+        stopRecording();
+      };
+
+      recognition.onerror = () => stopRecording();
+      recognition.onend = () => stopRecording();
+    }
+
+    micBtn.addEventListener('click', () => {
+      if (!recognition) return;
+      if (isRecording) {
+        recognition.stop();
+        stopRecording();
+      } else {
+        recognition.start();
+        isRecording = true;
+        micBtn.classList.add('recording');
+        micBtn.title = 'Stop recording';
+      }
+    });
+
+    function stopRecording() {
+      isRecording = false;
+      micBtn.classList.remove('recording');
+      micBtn.title = 'Start voice input';
+    }
+
+    // Generate action
+    function generateSign() {
+      const text = textarea.value.trim();
+      if (!text) {
+        showStatus('error', 'Please enter some text first.');
+        return;
+      }
+
+      showStatus('loading', 'Generating sign language video…');
+      showProgress();
+
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = '/speach';
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'textbox';
+      input.value = text;
+      form.appendChild(input);
+      document.body.appendChild(form);
+      form.submit();
+    }
+
+    function cancelAction() {
+      textarea.value = '';
+      hideStatus();
+      hideProgress();
+      const btn = document.getElementById('generateBtn');
+      btn.textContent = '';
+      btn.innerHTML = `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg> Generate Sign`;
+    }
+
+    function showStatus(type, msg) {
+      const bar = document.getElementById('statusBar');
+      const text = document.getElementById('statusText');
+      const spinner = document.getElementById('spinner');
+      bar.className = `status visible ${type}`;
+      text.textContent = msg;
+      spinner.style.display = type === 'loading' ? 'block' : 'none';
+    }
+
+    function hideStatus() {
+      document.getElementById('statusBar').className = 'status';
+    }
+
+    function showProgress() {
+      const track = document.getElementById('progressTrack');
+      const fill = document.getElementById('progressFill');
+      track.classList.add('visible');
+      fill.style.animation = 'none';
+      fill.offsetHeight; // reflow
+      fill.style.animation = 'progressAnim 3s ease forwards';
+    }
+
+    function hideProgress() {
+      document.getElementById('progressTrack').classList.remove('visible');
+    }
+  </script>
+</body>
+</html>
